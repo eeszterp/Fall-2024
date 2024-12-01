@@ -16,6 +16,7 @@ library(tidyverse)
 library(readr)
 library(dplyr)
 library(knitr)
+library(stringr)
 ```
 
 # Background
@@ -31,7 +32,6 @@ url <- "https://raw.githubusercontent.com/nthun/cocktail-balance/refs/heads/mast
 
 cocktail_bar <- read.delim(url, sep = "\t")
 
-View(cocktail_bar)
 str(cocktail_bar)
 ```
 
@@ -43,12 +43,6 @@ cleaned of all quantities (e.g. 1/2 oz, 2 dashes, etc.), and the indicator of
 alcohol content (e.g. 47.3% abv).
 
 ```{r}
-install.packages("tidyverse")
-
-library(dplyr)
-library(tidyr)
-library(stringr)
-
 # Putting ingredients in separate rows
 cocktailbar_new <- cocktail_bar %>% 
     separate_rows(ingredients, sep = "<br/>|<br>|<b4/>")
@@ -56,9 +50,10 @@ cocktailbar_new <- cocktail_bar %>%
 # Removing quantities, alcohol content, unnecessary space 
 cocktailbar_new <- cocktailbar_new %>%
   mutate(
-    ingredients = str_remove_all(ingredients, "\\b[0-9]+(\\/[0-9]+)?\\s*(oz|dash|dashes|drops|bsp)\\b"),
+    ingredients = str_remove_all(ingredients,"\\b[0-9]+(\\/[0-9]+)?\\s*(oz|dash|dashes|drops|bsp)\\b"),
     ingredients = str_remove_all(ingredients, "\\b[0-9]+\\b"),
-    ingredients = str_replace_all(ingredients, "[\\.\\s]", ""), 
+    ingredients = str_replace_all(ingredients, "\\.", ""),
+    ingredients = str_replace_all(ingredients, "\\s+", ""),
     ingredients = str_remove_all(ingredients, "\\(.*%abv\\)")
   )
 ```
@@ -80,9 +75,10 @@ cocktailbar_new <- cocktailbar_new %>%
 How many different ingredients you will the owner need?
 
 ```{r}
+# Counting unique ingredients 
 unique_ingredients <- cocktailbar_new %>%
-  count(ingredients, sort = TRUE) %>%
-
+  count(ingredients, sort = TRUE) 
+  
 print(unique_ingredients)
 ```
 
@@ -104,7 +100,7 @@ top_ingredients <- mutate(unique_ingredients, rank = dense_rank(desc(n))) %>%
   filter(rank <= 10)                        
 
 # top 10 ingredients (including ties): 
-print(top_ingredients)
+kable(top_ingredients)
 ```
 
 ## 6. Which cocktail(s) has/have the most ingredients?
@@ -126,7 +122,7 @@ cocktails_max_ingredients <- number_of_ingredients %>%
   filter(num_ingredients == max_ingredients)
 
 # Finding the cocktails with the maximum number of ingredients
-print(cocktails_max_ingredients)
+kable(cocktails_max_ingredients)
 ```
 
 ## 7. How many ingredients appear in only one cocktail (rare ingredient)?
@@ -153,20 +149,17 @@ The number of rare ingredients that appear in only one cocktail is 28.
 ```{r}
 # Step 1: Count the occurrence of each ingredient
 ingredient_counts <- cocktailbar_new %>%
-  count(ingredients) %>%  # Count occurrences of each ingredient
-  filter(n == 1)  # Keep only ingredients that appear in one cocktail
+  count(ingredients) %>%  
+  filter(n == 1)
 
 # Step 2: Find the cocktails that contain those rare ingredients
 cocktails_with_rare_ingredients <- cocktailbar_new %>%
-  filter(ingredients %in% ingredient_counts$ingredients)  # Filter for cocktails with rare ingredients
+  filter(ingredients %in% ingredient_counts$ingredients)
 
 # Step 3: Select relevant columns (cocktail name and ingredient) and display
 one_cocktail_ingr <- cocktails_with_rare_ingredients %>%
-  select(name, ingredients) %>%
-  distinct(name)  # Ensure unique cocktail-ingredient pairs
-
-# Print the result
-print(one_cocktail_ingr)
+  dplyr::select(name, ingredients) %>%
+  distinct(name)  
 
 # Show the result
 kable(one_cocktail_ingr)
@@ -179,7 +172,7 @@ cocktails_without_rare_ingredients <- cocktailbar_new %>%
   filter(!ingredients %in% rare_ingredients$ingredients) %>%
   distinct(name)
 
-print(cocktails_without_rare_ingredients)
+kable(cocktails_without_rare_ingredients)
 ```
 
 There are 55 cocktails without rare ingredients. 
@@ -196,7 +189,7 @@ unique_cocktails <- unique(cocktailbar_new$name)
 unique_ingredients <- unique(cocktailbar_new$ingredients)
 
 # Creating an empty matrix
-cocktail_matrix <- matrix(NA, nrow = length(unique_cocktails), ncol = length(unique_ingredients))
+cocktail_matrix <- matrix("", nrow = length(unique_cocktails), ncol = length(unique_ingredients))
 
 # Setting row and column names
 rownames(cocktail_matrix) <- unique_cocktails
@@ -204,9 +197,11 @@ colnames(cocktail_matrix) <- unique_ingredients
 
 # Filling the matrix based on the data
 for (i in 1:nrow(cocktailbar_new)) {
-  cocktail_matrix[cocktailbar_new$name[i], cocktailbar_new$ingredients[i]] <- "X"
+  cocktail_index <- match(cocktailbar_new$name[i], unique_cocktails)
+  ingredient_index <- match(cocktailbar_new$ingredients[i], unique_ingredients)
+  cocktail_matrix[cocktail_index, ingredient_index] <- "X"
 }
 
 # Printing the matrix
-print(cocktail_matrix)
-```{r}
+kable(cocktail_matrix)
+```
